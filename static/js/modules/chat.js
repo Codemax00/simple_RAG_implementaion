@@ -107,17 +107,14 @@ export class ChatManager {
           } else if (payload.type === "tool") {
             this.appendToolBadge(toolsContainer, payload.name, payload.args);
           } else if (payload.type === "token") {
-            this.markToolsCompleted(toolsContainer);
             rawMarkdown += payload.content;
             cursor.remove();
             bubble.innerHTML = this.renderMarkdown(rawMarkdown);
             bubble.appendChild(cursor);
             this.scrollToBottom();
           } else if (payload.type === "done") {
-            this.markToolsCompleted(toolsContainer);
             cursor.remove();
           } else if (payload.type === "error") {
-            this.markToolsCompleted(toolsContainer);
             cursor.remove();
             bubble.innerHTML += `<div style="color: var(--accent-rose); margin-top: 0.5rem;">[Error: ${payload.error}]</div>`;
           }
@@ -126,7 +123,6 @@ export class ChatManager {
       );
     } catch (e) {
       cursor.remove();
-      this.markToolsCompleted(toolsContainer);
       if (e.name === "AbortError") {
         bubble.innerHTML += `<div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem; font-style: italic;">[Generation stopped by user]</div>`;
       } else {
@@ -134,7 +130,6 @@ export class ChatManager {
       }
     } finally {
       cursor.remove();
-      this.markToolsCompleted(toolsContainer);
       this.abortController = null;
       this.setGenerating(false);
       this.input.focus();
@@ -189,9 +184,6 @@ export class ChatManager {
   }
 
   appendToolBadge(container, toolName, args) {
-    // Mark any preceding tools as completed
-    this.markToolsCompleted(container);
-
     const badge = document.createElement("div");
     badge.className = "tool-call-banner";
 
@@ -209,19 +201,6 @@ export class ChatManager {
     container.appendChild(badge);
     this.scrollToBottom();
   }
-
-  markToolsCompleted(container) {
-    if (!container) return;
-    container.querySelectorAll(".tool-call-banner").forEach((banner) => {
-      const spinner = banner.querySelector(".tool-spinner");
-      if (spinner) {
-        spinner.className = "tool-done-icon";
-        spinner.textContent = "✓";
-        banner.classList.add("completed");
-      }
-    });
-  }
-
 
   appendOptimizedBadge(container, optimized, keywords) {
     const badge = document.createElement("div");
