@@ -186,7 +186,8 @@
   font-size: 0.8rem;
   font-family: var(--font-mono);
   margin-bottom: 0.5rem;
-  animation: pulseTool 1.5s 3 ease-in-out;
+  animation: pulseTool 2s infinite ease-in-out;
+  transition: all 0.3s ease;
 }
 
 .tool-spinner {
@@ -195,22 +196,43 @@
   border: 2px solid rgba(6, 182, 212, 0.2);
   border-top-color: var(--accent-cyan);
   border-radius: 50%;
-  animation: spin 0.8s linear 3 forwards;
+  animation: spin 0.8s linear infinite;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-/* Stop loading and rolling animation once output has been given */
-.message-content-wrapper:not(:has(.streaming-cursor)) .tool-spinner,
-.message-content-wrapper:has(.message-bubble:not(:empty)) .tool-spinner {
-  animation: none !important;
-  border-color: rgba(6, 182, 212, 0.35);
-  border-top-color: var(--accent-cyan);
+/* Tool Completed State: Stops rolling animation & marks as done with checkmark */
+.tool-call-banner:has(~ .tool-call-banner),
+.message-content-wrapper:has(.message-bubble > p, .message-bubble > pre, .message-bubble > ul) .tool-call-banner,
+.message-content-wrapper:not(:has(.streaming-cursor)) .tool-call-banner {
+  animation: none;
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #6ee7b7;
 }
 
-.message-content-wrapper:not(:has(.streaming-cursor)) .tool-call-banner,
-.message-content-wrapper:has(.message-bubble:not(:empty)) .tool-call-banner {
-  animation: none !important;
-  opacity: 0.9;
+.tool-call-banner:has(~ .tool-call-banner) .tool-spinner,
+.message-content-wrapper:has(.message-bubble > p, .message-bubble > pre, .message-bubble > ul) .tool-spinner,
+.message-content-wrapper:not(:has(.streaming-cursor)) .tool-spinner {
+  animation: none;
+  border: none;
+  border-radius: 0;
+  width: 14px;
+  height: 14px;
 }
+
+.tool-call-banner:has(~ .tool-call-banner) .tool-spinner::before,
+.message-content-wrapper:has(.message-bubble > p, .message-bubble > pre, .message-bubble > ul) .tool-spinner::before,
+.message-content-wrapper:not(:has(.streaming-cursor)) .tool-spinner::before {
+  content: "✓";
+  color: var(--accent-emerald, #10b981);
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
 
 /* Dual-Memory Optimized Query Pill */
 .optimized-query-pill {
