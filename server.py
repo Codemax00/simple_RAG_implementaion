@@ -214,7 +214,7 @@ async def chat_stream(payload: ChatPayload, request: Request):
     """Streams tokens and tool calls in real time using backend LangGraph agent with Dual-Memory Query Optimization."""
     agent = get_agent()
     thread_id = payload.thread_id or f"web-session-{STATE['session_counter']}"
-    config = {"configurable": {"thread_id": thread_id}}
+    config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 5}
 
     # Fetch active LLM for query optimization
     cfg = load_model_config()

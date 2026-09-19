@@ -19,11 +19,10 @@ DEFAULT_PRESETS = {
         "gemma2",
     ],
     "groq": [
+        "llama-3.3-70b-versatile",
         "qwen/qwen3.8-27b",
-        "openai/gpt-oss-20b",
         "openai/gpt-oss-120b",
-        "groq/compound",
-        "groq/compound-mini",
+        "openai/gpt-oss-20b",
     ],
     "gemini": [
         "gemini-3.6-flash",

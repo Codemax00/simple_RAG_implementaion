@@ -98,7 +98,7 @@ async def run_langgraph_agent(vm: VectorStoreManager):
 
     agent, model_cfg = create_agent_instance()
     session_counter = 1
-    config = {"configurable": {"thread_id": f"interactive-session-{session_counter}"}}
+    config = {"configurable": {"thread_id": f"interactive-session-{session_counter}"}, "recursion_limit": 5}
 
     # Document upload option comes AFTER model is selected and loaded
     from src.rag.doc import aprompt_upload_documents
@@ -127,7 +127,7 @@ async def run_langgraph_agent(vm: VectorStoreManager):
 
             if user_input.lower() in ("/clear", "/reset", "clear"):
                 session_counter += 1
-                config = {"configurable": {"thread_id": f"interactive-session-{session_counter}"}}
+                config = {"configurable": {"thread_id": f"interactive-session-{session_counter}"}, "recursion_limit": 5}
                 print("[INFO] Conversation history reset! Starting with fresh token quota.")
                 continue
 
@@ -143,7 +143,7 @@ async def run_langgraph_agent(vm: VectorStoreManager):
                     save_model_config(new_prov, new_model)
                     agent, model_cfg = create_agent_instance()
                     session_counter += 1
-                    config = {"configurable": {"thread_id": f"interactive-session-{session_counter}"}}
+                    config = {"configurable": {"thread_id": f"interactive-session-{session_counter}"}, "recursion_limit": 5}
                     print(f"[SUCCESS] Switched model to {new_model} ({new_prov.upper()})")
                 else:
                     curr = load_model_config()
