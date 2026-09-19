@@ -197,6 +197,10 @@ async def upload_document(file: UploadFile = File(...)):
     return StreamingResponse(sse_pipeline(), media_type="text/event-stream")
 
 
+from src.rag.optimizer import UserInputOptimizer
+
+OPTIMIZER = UserInputOptimizer()
+
 # -------------------------------------------------------------------
 # Real-time Agent Streaming APIs
 # -------------------------------------------------------------------
@@ -207,11 +211,17 @@ class ChatPayload(BaseModel):
 
 @app.post("/api/chat/stream")
 async def chat_stream(payload: ChatPayload, request: Request):
-    """Streams tokens and tool calls in real time using backend LangGraph agent."""
+    """Streams tokens and tool calls in real time using backend LangGraph agent with Dual-Memory Query Optimization."""
     agent = get_agent()
     thread_id = payload.thread_id or f"web-session-{STATE['session_counter']}"
     config = {"configurable": {"thread_id": thread_id}}
-    inputs = {"messages": [("user", payload.message)]}
+
+    # Fetch active LLM for query optimization
+    cfg = load_model_config()
+    try:
+        opt_llm = get_llm(provider=cfg.get("provider", "ollama"), model_name=cfg.get("model_name", "qwen3:4b"), temperature=0.0)
+    except Exception:
+        opt_llm = None
 
     def parse_chunk_text(content) -> str:
         if isinstance(content, str):
@@ -222,7 +232,22 @@ async def chat_stream(payload: ChatPayload, request: Request):
 
     async def sse_stream():
         called = set()
+        accumulated_answer = []
+
         try:
+            # 1. Optimize user input using Dual-Memory (History + Keywords)
+            opt_res = await OPTIMIZER.aoptimize_query(payload.message, thread_id, llm=opt_llm)
+            yield f"data: {json.dumps({'type': 'optimized_query', 'original': opt_res['original'], 'optimized': opt_res['optimized'], 'keywords': opt_res['keywords'], 'was_rewritten': opt_res['was_rewritten']})}\n\n"
+
+            # 2. Formulate agent input message
+            if opt_res.get("was_rewritten") and opt_res["optimized"] != payload.message:
+                agent_msg = f"{payload.message} (Context & Retrieval Focus: {opt_res['optimized']})"
+            else:
+                agent_msg = payload.message
+
+            inputs = {"messages": [("user", agent_msg)]}
+
+            # 3. Stream agent execution
             async for chunk, meta in agent.astream(inputs, config, stream_mode="messages"):
                 if await request.is_disconnected():
                     print("[INFO] Client disconnected (Stop requested). Halting generation.")
@@ -238,7 +263,15 @@ async def chat_stream(payload: ChatPayload, request: Request):
 
                     text = parse_chunk_text(chunk.content)
                     if text:
+                        accumulated_answer.append(text)
                         yield f"data: {json.dumps({'type': 'token', 'content': text})}\n\n"
+
+            # 4. Record turn into Dual Memory
+            full_text = "".join(accumulated_answer)
+            OPTIMIZER.record_turn(thread_id, "user", payload.message)
+            if full_text:
+                OPTIMIZER.record_turn(thread_id, "assistant", full_text)
+
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
         except Exception as err:
             yield f"data: {json.dumps({'type': 'error', 'error': str(err)})}\n\n"
@@ -248,8 +281,13 @@ async def chat_stream(payload: ChatPayload, request: Request):
 
 @app.post("/api/chat/reset")
 async def reset_chat():
+    old_id = f"web-session-{STATE['session_counter']}"
+    OPTIMIZER.clear_session(old_id)
     STATE["session_counter"] += 1
-    return {"success": True, "thread_id": f"web-session-{STATE['session_counter']}"}
+    new_id = f"web-session-{STATE['session_counter']}"
+    OPTIMIZER.clear_session(new_id)
+    return {"success": True, "thread_id": new_id}
+
 
 
 if __name__ == "__main__":
