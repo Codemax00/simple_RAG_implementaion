@@ -18,7 +18,7 @@ from src.rag.tools import make_rag_tool
 load_dotenv()
 
 
-def setup_knowledge_base() -> VectorStoreManager:
+async def asetup_knowledge_base() -> VectorStoreManager:
     """Initializes and verifies the persistent ChromaDB vector store."""
     vm = VectorStoreManager(persist_directory="./chroma_db")
 
@@ -30,8 +30,8 @@ def setup_knowledge_base() -> VectorStoreManager:
         if not docs:
             print("[WARN] No documents found in './documents' folder!")
             return vm
-        print(f"[INFO] Ingested {len(docs)} document pages. Chunking and indexing into ChromaDB...")
-        total_chunks = vm.index_documents(docs)
+        print(f"[INFO] Ingested {len(docs)} document pages. Starting pipelined async chunking & embedding...")
+        total_chunks = await vm.aindex_document_stream(docs)
         print(f"[SUCCESS] Successfully indexed {total_chunks} chunks into './chroma_db'.")
 
     return vm
@@ -101,11 +101,11 @@ async def run_langgraph_agent(vm: VectorStoreManager):
     config = {"configurable": {"thread_id": f"interactive-session-{session_counter}"}}
 
     # Document upload option comes AFTER model is selected and loaded
-    from src.rag.doc import prompt_upload_documents
-    await asyncio.to_thread(prompt_upload_documents, vm)
+    from src.rag.doc import aprompt_upload_documents
+    await aprompt_upload_documents(vm)
 
-    print("\n" + "=" * 60)
-    print("⚡ ASYNC LANGGRAPH AGENTIC RAG SYSTEM READY")
+    print("============================================================")
+    print("      ASYNC LANGGRAPH AGENTIC RAG SYSTEM READY")
     print(f"Provider: {model_cfg.get('provider', '').upper()} | Model: {model_cfg.get('model_name', '')}")
     print("Commands:")
     print("  • Type your question to query the knowledge base (Real-time Token Streaming)")
@@ -132,7 +132,7 @@ async def run_langgraph_agent(vm: VectorStoreManager):
                 continue
 
             if user_input.lower() in ("/upload", "/add", "upload"):
-                await asyncio.to_thread(prompt_upload_documents, vm)
+                await aprompt_upload_documents(vm)
                 continue
 
             if user_input.lower().startswith("/model"):
@@ -174,7 +174,7 @@ async def run_langgraph_agent(vm: VectorStoreManager):
                             if cname and call_id not in called_tools:
                                 called_tools.add(call_id)
                                 query_str = cargs.get("query", "") if isinstance(cargs, dict) else str(cargs)
-                                print(f"\n⚡ [Agent Tool Call] -> {cname}({query_str})")
+                                print(f"\n[Agent Tool Call] -> {cname}({query_str})")
 
                     # Real-time token streaming to console
                     text = extract_text_from_chunk(chunk.content)
@@ -205,7 +205,7 @@ async def main():
     from src.rag.models import prompt_select_model, check_ollama_status
 
     # Initialize ChromaDB vector store
-    vm = await asyncio.to_thread(setup_knowledge_base)
+    vm = await asetup_knowledge_base()
 
     # Interactively ask the user to select or confirm model on startup
     config = await asyncio.to_thread(prompt_select_model)

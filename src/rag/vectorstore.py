@@ -119,6 +119,84 @@ class VectorStoreManager:
         import asyncio
         return await asyncio.to_thread(self.similarity_search, query, k)
 
+    async def aindex_document_stream(
+        self,
+        documents: List[Document],
+        chunk_size: int = 1000,
+        chunk_overlap: int = 100,
+        micro_batch_size: int = 10,
+    ) -> int:
+        """Asynchronously streams chunks directly to the embedding layer in real-time.
+
+        The very first chunk of the document is immediately dispatched to embedding and
+        persisted to ChromaDB without waiting for subsequent chunks or pages to be split.
+        Chunking and embedding execute concurrently as an async Producer-Consumer pipeline.
+        """
+        import asyncio
+
+        queue: asyncio.Queue[Optional[Document]] = asyncio.Queue(maxsize=100)
+        indexed_count = 0
+        total_chunks_produced = 0
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            length_function=len,
+            separators=["\n\n", "\n", " ", ""],
+        )
+
+        async def chunker_producer():
+            nonlocal total_chunks_produced
+            chunk_index = 0
+            for doc in documents:
+                doc_chunks = splitter.split_documents([doc])
+                for chunk in doc_chunks:
+                    chunk_index += 1
+                    total_chunks_produced = chunk_index
+                    if chunk_index == 1:
+                        print("[ASYNC PIPELINE] Chunk 1 created -> directly passing to embedding layer...")
+                    await queue.put(chunk)
+            # Signal completion
+            await queue.put(None)
+
+        async def embedder_consumer():
+            nonlocal indexed_count
+            first_chunk_processed = False
+            batch: List[Document] = []
+
+            while True:
+                item = await queue.get()
+                if item is None:
+                    # Flush remaining batch
+                    if batch:
+                        await asyncio.to_thread(self.vectorstore.add_documents, batch)
+                        indexed_count += len(batch)
+                        print(f"[ASYNC PIPELINE] Final batch indexed ({indexed_count} total chunks in ChromaDB).")
+                    queue.task_done()
+                    break
+
+                # The first chunk is directly and immediately embedded with 0 delay
+                if not first_chunk_processed:
+                    await asyncio.to_thread(self.vectorstore.add_documents, [item])
+                    indexed_count += 1
+                    first_chunk_processed = True
+                    print("[ASYNC PIPELINE] Chunk 1 embedded and saved into ChromaDB! (Streaming remainder...)")
+                    queue.task_done()
+                    continue
+
+                batch.append(item)
+                queue.task_done()
+
+                # Process in micro-batches or whenever queue is empty to maintain steady flow
+                if len(batch) >= micro_batch_size or queue.empty():
+                    await asyncio.to_thread(self.vectorstore.add_documents, batch)
+                    indexed_count += len(batch)
+                    print(f"[ASYNC PIPELINE] Concurrently embedded chunks up to {indexed_count}...")
+                    batch = []
+
+        await asyncio.gather(chunker_producer(), embedder_consumer())
+        return indexed_count
+
     async def aindex_documents(
         self,
         documents: List[Document],
@@ -126,12 +204,9 @@ class VectorStoreManager:
         chunk_overlap: int = 100,
         batch_size: int = 200,
     ) -> int:
-        """Asynchronously chunks and indexes documents in a background thread."""
-        import asyncio
-        return await asyncio.to_thread(
-            self.index_documents,
+        """Asynchronously chunks and indexes documents using the streaming pipeline."""
+        return await self.aindex_document_stream(
             documents=documents,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
-            batch_size=batch_size,
         )
