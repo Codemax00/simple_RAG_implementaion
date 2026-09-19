@@ -252,4 +252,3 @@ def prompt_upload_documents(vm: Any, docs_dir: str = "./documents") -> None:
             pool.submit(lambda: asyncio.run(aprompt_upload_documents(vm, docs_dir))).result()
     else:
         asyncio.run(aprompt_upload_documents(vm, docs_dir))
-")
