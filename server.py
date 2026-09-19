@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -206,7 +206,7 @@ class ChatPayload(BaseModel):
 
 
 @app.post("/api/chat/stream")
-async def chat_stream(payload: ChatPayload):
+async def chat_stream(payload: ChatPayload, request: Request):
     """Streams tokens and tool calls in real time using backend LangGraph agent."""
     agent = get_agent()
     thread_id = payload.thread_id or f"web-session-{STATE['session_counter']}"
@@ -224,6 +224,10 @@ async def chat_stream(payload: ChatPayload):
         called = set()
         try:
             async for chunk, meta in agent.astream(inputs, config, stream_mode="messages"):
+                if await request.is_disconnected():
+                    print("[INFO] Client disconnected (Stop requested). Halting generation.")
+                    break
+
                 if meta.get("langgraph_node") == "agent":
                     if hasattr(chunk, "tool_calls") and chunk.tool_calls:
                         for tc in chunk.tool_calls:

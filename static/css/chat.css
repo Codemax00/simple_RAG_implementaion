@@ -343,6 +343,27 @@
   transform: none;
 }
 
+.input-btn.btn-stop {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  color: #f43f5e;
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.25);
+  animation: pulseStop 1.5s infinite ease-in-out;
+}
+
+.input-btn.btn-stop:hover {
+  background: #f43f5e;
+  color: #ffffff;
+  transform: scale(1.08);
+  box-shadow: 0 0 20px rgba(244, 63, 94, 0.45);
+}
+
+@keyframes pulseStop {
+  0%, 100% { box-shadow: 0 0 10px rgba(244, 63, 94, 0.2); }
+  50% { box-shadow: 0 0 18px rgba(244, 63, 94, 0.45); }
+}
+
+
 .input-hint-row {
   display: flex;
   justify-content: space-between;

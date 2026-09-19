@@ -62,11 +62,12 @@ export const Api = {
     }
   },
 
-  async streamChat(message, threadId, onChunk) {
+  async streamChat(message, threadId, onChunk, signal = null) {
     const response = await fetch("/api/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, thread_id: threadId }),
+      signal,
     });
 
     const reader = response.body.getReader();

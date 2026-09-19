@@ -8,6 +8,7 @@ export class ChatManager {
   constructor() {
     this.threadId = null;
     this.isGenerating = false;
+    this.abortController = null;
 
     // DOM Elements
     this.viewport = document.getElementById("chatViewport");
@@ -15,6 +16,7 @@ export class ChatManager {
     this.welcomeHero = document.getElementById("welcomeHero");
     this.input = document.getElementById("chatInput");
     this.btnSend = document.getElementById("btnSend");
+    this.btnStop = document.getElementById("btnStop");
     this.btnReset = document.getElementById("btnReset");
 
     this.bindEvents();
@@ -33,7 +35,18 @@ export class ChatManager {
       }
     });
 
+    // Stop shortcut (Esc)
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && this.isGenerating) {
+        e.preventDefault();
+        this.stop();
+      }
+    });
+
     this.btnSend.addEventListener("click", () => this.send());
+    if (this.btnStop) {
+      this.btnStop.addEventListener("click", () => this.stop());
+    }
     this.btnReset.addEventListener("click", () => this.reset());
 
     // Prompt Cards Click
@@ -48,6 +61,13 @@ export class ChatManager {
     });
   }
 
+  stop() {
+    if (this.isGenerating && this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+  }
+
   async send() {
     const text = this.input.value.trim();
     if (!text || this.isGenerating) return;
@@ -58,6 +78,7 @@ export class ChatManager {
 
     this.input.value = "";
     this.input.style.height = "auto";
+    this.abortController = new AbortController();
     this.setGenerating(true);
 
     // Render User Message
@@ -75,27 +96,37 @@ export class ChatManager {
     let rawMarkdown = "";
 
     try {
-      await Api.streamChat(text, this.threadId, (payload) => {
-        if (payload.type === "tool") {
-          this.appendToolBadge(toolsContainer, payload.name, payload.args);
-        } else if (payload.type === "token") {
-          rawMarkdown += payload.content;
-          cursor.remove();
-          bubble.innerHTML = this.renderMarkdown(rawMarkdown);
-          bubble.appendChild(cursor);
-          this.scrollToBottom();
-        } else if (payload.type === "done") {
-          cursor.remove();
-        } else if (payload.type === "error") {
-          cursor.remove();
-          bubble.innerHTML += `<div style="color: var(--accent-rose); margin-top: 0.5rem;">[Error: ${payload.error}]</div>`;
-        }
-      });
+      await Api.streamChat(
+        text,
+        this.threadId,
+        (payload) => {
+          if (payload.type === "tool") {
+            this.appendToolBadge(toolsContainer, payload.name, payload.args);
+          } else if (payload.type === "token") {
+            rawMarkdown += payload.content;
+            cursor.remove();
+            bubble.innerHTML = this.renderMarkdown(rawMarkdown);
+            bubble.appendChild(cursor);
+            this.scrollToBottom();
+          } else if (payload.type === "done") {
+            cursor.remove();
+          } else if (payload.type === "error") {
+            cursor.remove();
+            bubble.innerHTML += `<div style="color: var(--accent-rose); margin-top: 0.5rem;">[Error: ${payload.error}]</div>`;
+          }
+        },
+        this.abortController.signal
+      );
     } catch (e) {
       cursor.remove();
-      bubble.innerHTML += `<div style="color: var(--accent-rose); margin-top: 0.5rem;">[Network error: ${e.message}]</div>`;
+      if (e.name === "AbortError") {
+        bubble.innerHTML += `<div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem; font-style: italic;">[Generation stopped by user]</div>`;
+      } else {
+        bubble.innerHTML += `<div style="color: var(--accent-rose); margin-top: 0.5rem;">[Network error: ${e.message}]</div>`;
+      }
     } finally {
       cursor.remove();
+      this.abortController = null;
       this.setGenerating(false);
       this.input.focus();
     }
@@ -194,7 +225,16 @@ export class ChatManager {
 
   setGenerating(isGenerating) {
     this.isGenerating = isGenerating;
-    this.btnSend.disabled = isGenerating;
+    if (isGenerating) {
+      if (this.btnSend) this.btnSend.style.display = "none";
+      if (this.btnStop) this.btnStop.style.display = "flex";
+    } else {
+      if (this.btnStop) this.btnStop.style.display = "none";
+      if (this.btnSend) {
+        this.btnSend.style.display = "flex";
+        this.btnSend.disabled = false;
+      }
+    }
   }
 
   scrollToBottom() {
