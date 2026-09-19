@@ -113,3 +113,25 @@ class VectorStoreManager:
     def similarity_search(self, query: str, k: int = 4) -> List[Document]:
         """Performs semantic similarity search on the knowledge base."""
         return self.vectorstore.similarity_search(query, k=k)
+
+    async def asimilarity_search(self, query: str, k: int = 4) -> List[Document]:
+        """Asynchronously performs semantic similarity search without blocking."""
+        import asyncio
+        return await asyncio.to_thread(self.similarity_search, query, k)
+
+    async def aindex_documents(
+        self,
+        documents: List[Document],
+        chunk_size: int = 1000,
+        chunk_overlap: int = 100,
+        batch_size: int = 200,
+    ) -> int:
+        """Asynchronously chunks and indexes documents in a background thread."""
+        import asyncio
+        return await asyncio.to_thread(
+            self.index_documents,
+            documents=documents,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            batch_size=batch_size,
+        )

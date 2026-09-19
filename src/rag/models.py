@@ -216,6 +216,28 @@ def test_model_connection(provider: str, model_name: str, base_url: str = "http:
         return False, str(e), latency
 
 
+async def atest_model_connection(provider: str, model_name: str, base_url: str = "http://localhost:11434") -> Tuple[bool, str, float]:
+    """Asynchronously tests connection to a model by issuing a quick prompt without blocking."""
+    start_time = time.time()
+    try:
+        llm = get_llm(provider=provider, model_name=model_name)
+        response = await llm.ainvoke("Hi! Please confirm in under 10 words that you are online.")
+        latency = round(time.time() - start_time, 2)
+        content = response.content if hasattr(response, "content") else str(response)
+        if isinstance(content, list):
+            content = " ".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
+        return True, content.strip(), latency
+    except Exception as e:
+        latency = round(time.time() - start_time, 2)
+        return False, str(e), latency
+
+
+async def acheck_ollama_status(base_url: str = "http://localhost:11434") -> Tuple[bool, str]:
+    """Asynchronously checks if the local Ollama server is reachable."""
+    import asyncio
+    return await asyncio.to_thread(check_ollama_status, base_url)
+
+
 def prompt_select_model() -> Dict[str, Any]:
     """Interactively prompts the user on startup to select or confirm the LLM model."""
     config = load_model_config()

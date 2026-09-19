@@ -84,6 +84,12 @@ def create_tool_suite(registry: Optional[ToolRegistry] = None) -> List[Callable]
         except Exception as e:
             return f"Error inspecting vector database: {e}"
 
+    async def alist_available_documents(filter_keyword: str = "") -> str:
+        import asyncio
+        return await asyncio.to_thread(list_available_documents.invoke, {"filter_keyword": filter_keyword})
+
+    list_available_documents.coroutine = alist_available_documents
+
     # 3. Safe Math / Calculation Tool
     @tool(args_schema=CalculateInput)
     def calculate(expression: str) -> str:
@@ -226,6 +232,12 @@ def create_tool_suite(registry: Optional[ToolRegistry] = None) -> List[Callable]
             return f"Successfully generated PDF report at: {pdf_path}"
         except Exception as e:
             return f"Error creating PDF: {e}"
+
+    async def agenerate_pdf_report(title: str, content: str, filename: str = "generated_rag_report.pdf") -> str:
+        import asyncio
+        return await asyncio.to_thread(generate_pdf_report.invoke, {"title": title, "content": content, "filename": filename})
+
+    generate_pdf_report.coroutine = agenerate_pdf_report
 
     # Alias tools for model calling flexibility
     @tool(args_schema=PDFReportInput)
